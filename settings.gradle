@@ -13,5 +13,7 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "Сms app"
-include ':app'
 include ':cms-system'
+include ':sample:app'
+include ':sample:data'
+include ':sample:domain'
