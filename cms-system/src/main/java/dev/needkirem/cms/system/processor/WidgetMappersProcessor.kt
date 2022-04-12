@@ -1,7 +1,7 @@
 package dev.needkirem.cms.system.processor
 
 import com.google.auto.service.AutoService
-import dev.needkirem.cms.system.annotation.CmsWidget
+import dev.needkirem.cms.system.annotation.CmsWidgetMapper
 import dev.needkirem.cms.system.utils.asTypeElement
 import dev.needkirem.cms.system.utils.containsType
 import net.ltgt.gradle.incap.IncrementalAnnotationProcessor
@@ -73,6 +73,6 @@ class WidgetMappersProcessor : AbstractProcessor() {
     }
 
     companion object {
-        private val CMS_WIDGET_ANNOTATION = CmsWidget::class
+        private val CMS_WIDGET_ANNOTATION = CmsWidgetMapper::class
     }
 }

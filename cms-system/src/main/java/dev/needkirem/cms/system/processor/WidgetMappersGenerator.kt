@@ -1,13 +1,12 @@
 package dev.needkirem.cms.system.processor
 
 import com.squareup.kotlinpoet.*
-import dev.needkirem.cms.system.annotation.CmsWidget
+import dev.needkirem.cms.system.annotation.CmsWidgetMapper
+import dev.needkirem.cms.system.mapper.JsonWidgetMapper
+import dev.needkirem.cms.system.mapper.JsonWidgetMapperProvider
 import dev.needkirem.cms.system.mapper.WidgetMapper
 import dev.needkirem.cms.system.mapper.WidgetMapperProvider
-import dev.needkirem.cms.system.models.CmsPage
-import dev.needkirem.cms.system.utils.getClassName
-import dev.needkirem.cms.system.utils.getPackage
-import dev.needkirem.cms.system.utils.getTypeName
+import dev.needkirem.cms.system.utils.*
 import kotlinx.serialization.json.JsonObject
 import javax.annotation.processing.ProcessingEnvironment
 import javax.lang.model.element.TypeElement
@@ -15,59 +14,79 @@ import javax.lang.model.element.TypeElement
 class WidgetMappersGenerator {
 
     private var classPackage = ""
-    private val providerWidgetGetMapperPairs = mutableListOf<Pair<String, String>>()
 
     fun generate(
         environment: ProcessingEnvironment,
         widgetTypeElements: List<TypeElement>,
     ) {
-        for (widgetTypeElement in widgetTypeElements) {
-            val widgetClassName = widgetTypeElement.getClassName()
-            val widgetTypeName = widgetTypeElement.getTypeName()
-            val widgetTypeAnnotation =
-                widgetTypeElement.getAnnotation(CmsWidget::class.java).widgetType
+        val jsonMapperPairs = mutableListOf<Pair<String, String>>()
+        val modelMapperTriples = mutableListOf<Triple<String, String, String>>()
 
-            val mapperClassName = "$widgetClassName$MAPPER"
-            val classPackage = "${widgetTypeElement.getPackage()}$PACKAGE_POSTFIX"
+        for (element in widgetTypeElements) {
+            val widgetMapperAnnotation = element.getAnnotationMirror(CmsWidgetMapper::class.java)
+            val dtoElement = widgetMapperAnnotation?.getAnnotationValueElement(environment, DTO_KEY)
+
+            requireNotNull(dtoElement)
+
+            val dtoClassName = dtoElement.getClassNameString()
+            val widgetType = widgetMapperAnnotation.getAnnotationValueAsString(WIDGET_TYPE_KEY)
+
+            val jsonMapperClassName = "$dtoClassName$JSON_MAPPER"
+            val classPackage = "${element.getPackage()}$PACKAGE_POSTFIX"
             this.classPackage = classPackage
 
             val widgetStatement =
-                "val widget = json.decodeFromJsonElement($widgetClassName.serializer(), $JSON_OBJECT_PARAM_NAME)"
+                "val widget = json.decodeFromJsonElement($dtoClassName.serializer(), $JSON_OBJECT_PARAM_NAME)"
 
             val mapFunction = FunSpec.builder(MAP_FUNCTION_NAME)
                 .addModifiers(KModifier.OVERRIDE)
                 .addParameter(JSON_OBJECT_PARAM_NAME, JsonObject::class)
                 .addStatement(widgetStatement)
                 .addStatement(RETURN_STATEMENT)
-                .returns(widgetTypeName)
+                .returns(dtoElement.getTypeName())
                 .build()
 
-            val mapperClass = TypeSpec.classBuilder(mapperClassName)
-                .superclass(WidgetMapper::class)
+            val mapperClass = TypeSpec.classBuilder(jsonMapperClassName)
+                .superclass(JsonWidgetMapper::class)
                 .addFunction(mapFunction)
                 .build()
 
-            val fileSpec = FileSpec.builder(classPackage, mapperClassName)
+            val fileSpec = FileSpec.builder(classPackage, jsonMapperClassName)
                 .addType(mapperClass)
                 .build()
 
-            providerWidgetGetMapperPairs.add(widgetTypeAnnotation to mapperClassName)
+            jsonMapperPairs.add(widgetType to jsonMapperClassName)
+            modelMapperTriples.add(
+                Triple(
+                    widgetType,
+                    element.getClassName(),
+                    element.getPackage().toString()
+                )
+            )
 
             fileSpec.writeTo(environment.filer)
         }
 
-        generateWidgetMapperProvider(environment)
-        generateCmsPageMapper(environment)
+        generateJsonWidgetMapperProvider(
+            environment = environment,
+            mapperPairs = jsonMapperPairs,
+        )
+        generateModelWidgetMapperProvider(
+            environment = environment,
+            mapperTriples = modelMapperTriples,
+        )
     }
 
-    private fun generateWidgetMapperProvider(
+    private fun generateJsonWidgetMapperProvider(
         environment: ProcessingEnvironment,
+        mapperPairs: List<Pair<String, String>>,
     ) {
+        val mapFunReturnType = typeNameOf<JsonWidgetMapper?>()
         val providerProperties = mutableListOf<PropertySpec>()
         var providerStatement = "return when($WIDGET_MAPPER_PROVIDER_GET_FUNCTION_PARAM) {\n"
 
-        providerWidgetGetMapperPairs.forEach { (widget, mapper) ->
-            val lazyProviderProperty = PropertySpec.builder(mapper, WidgetMapper::class)
+        mapperPairs.forEach { (widget, mapper) ->
+            val lazyProviderProperty = PropertySpec.builder(mapper, mapFunReturnType)
                 .addModifiers(KModifier.PRIVATE)
                 .delegate("lazy { $mapper() }")
                 .build()
@@ -76,85 +95,83 @@ class WidgetMappersGenerator {
         }
         providerStatement = "$providerStatement else -> null \n}"
 
-        val mapperProviderReturnType = typeNameOf<WidgetMapper?>()
         val mapperProviderGetFunction = FunSpec.builder(WIDGET_MAPPER_PROVIDER_GET_FUNCTION_NAME)
             .addModifiers(KModifier.OVERRIDE)
             .addParameter(WIDGET_MAPPER_PROVIDER_GET_FUNCTION_PARAM, typeNameOf<String?>())
             .addStatement(providerStatement)
-            .returns(mapperProviderReturnType)
+            .returns(mapFunReturnType)
             .build()
 
-        val mapperProviderClass = TypeSpec.classBuilder(WIDGET_MAPPER_PROVIDER_CLASS_NAME)
-            .superclass(WidgetMapperProvider::class)
+        val mapperProviderClass = TypeSpec.classBuilder(JSON_MAPPER_PROVIDER_CLASS_NAME)
+            .superclass(JsonWidgetMapperProvider::class)
             .addProperties(providerProperties)
             .addFunction(mapperProviderGetFunction)
             .build()
 
-        val fileSpec = FileSpec.builder(classPackage, WIDGET_MAPPER_PROVIDER_CLASS_NAME)
+        val fileSpec = FileSpec.builder(classPackage, JSON_MAPPER_PROVIDER_CLASS_NAME)
             .addType(mapperProviderClass)
             .build()
 
         fileSpec.writeTo(environment.filer)
     }
 
-    private fun generateCmsPageMapper(
+    private fun generateModelWidgetMapperProvider(
         environment: ProcessingEnvironment,
+        mapperTriples: List<Triple<String, String, String>>,
     ) {
-        val widgetMapperProviderAbstractClassName =
-            WidgetMapperProvider::class.simpleName.toString()
-        val widgetMapperProviderProperty = PropertySpec.builder(
-            widgetMapperProviderAbstractClassName,
-            WidgetMapperProvider::class
-        )
-            .delegate("lazy { $WIDGET_MAPPER_PROVIDER_CLASS_NAME() }")
+        val mapFunReturnType = typeNameOf<WidgetMapper>()
+        val providerProperties = mutableListOf<PropertySpec>()
+        val imports = mutableListOf<Pair<String, String>>()
+        var providerStatement = "return when($WIDGET_MAPPER_PROVIDER_GET_FUNCTION_PARAM) {\n"
+
+        mapperTriples.forEach { (widget, mapper, pack) ->
+            val lazyProviderProperty = PropertySpec.builder(mapper, mapFunReturnType)
+                .addModifiers(KModifier.PRIVATE)
+                .delegate("lazy { $mapper() }")
+                .build()
+            providerProperties.add(lazyProviderProperty)
+            imports.add(pack to mapper)
+            providerStatement = "$providerStatement\"$widget\" -> $mapper\n"
+        }
+        val throwStatement =
+            "throw IllegalArgumentException(\"Cannot find widget mapper for widgetType = \$widgetType\")"
+        providerStatement = "$providerStatement else -> $throwStatement \n}"
+
+        val mapperProviderGetFunction = FunSpec.builder(WIDGET_MAPPER_PROVIDER_GET_FUNCTION_NAME)
+            .addModifiers(KModifier.OVERRIDE)
+            .addParameter(WIDGET_MAPPER_PROVIDER_GET_FUNCTION_PARAM, typeNameOf<String>())
+            .addStatement(providerStatement)
+            .returns(mapFunReturnType)
             .build()
 
-        val widgetMapperErrorProperty = PropertySpec.builder(MAPPER_ERROR_TAG, String::class)
-            .initializer(CMS_PAGE_MAPPER_ERROR_INITIALIZER)
+        val mapperProviderClass = TypeSpec.classBuilder(MODEL_MAPPER_PROVIDER_CLASS_NAME)
+            .superclass(WidgetMapperProvider::class)
+            .addProperties(providerProperties)
+            .addFunction(mapperProviderGetFunction)
             .build()
 
-        val mapFunction = FunSpec.builder(MAP_FUNCTION_NAME)
-            .returns(CmsPage::class)
-            .addParameter(JSON_OBJECT_PARAM_NAME, JsonObject::class)
-            .addStatement("val jsonWidgets = jsonObject.getArray(\"$CMS_PAGE_MAPPER_WIDGETS_KEY\")")
-            .addStatement("val widgets = jsonWidgets.mapNotNull { jsonElement ->")
-            .addStatement("val widgetType = jsonElement.jsonObject.getString(\"$CMS_PAGE_MAPPER_WIDGET_TYPE_KEY\")")
-            .addStatement("val mapper = $widgetMapperProviderAbstractClassName.get(widgetType)")
-            .addStatement("try { mapper?.map(jsonElement.jsonObject) }")
-            .addStatement("catch (throwable: Throwable) { null } }")
-            .addStatement("return CmsPage(widgets)")
-            .build()
+        val fileSpec = FileSpec.builder(classPackage, MODEL_MAPPER_PROVIDER_CLASS_NAME)
+            .addType(mapperProviderClass)
 
-        val cmsMapperClass = TypeSpec.classBuilder(CMS_PAGE_MAPPER_CLASS_NAME)
-            .addProperty(widgetMapperErrorProperty)
-            .addProperty(widgetMapperProviderProperty)
-            .addFunction(mapFunction)
-            .build()
+        imports.forEach { (pack, name) ->
+            fileSpec.addImport(pack, name)
+        }
 
-        val fileSpec = FileSpec.builder(classPackage, CMS_PAGE_MAPPER_CLASS_NAME)
-            .addType(cmsMapperClass)
-            .addImport("dev.needkirem.cms.system.utils", "getArray", "getString")
-            .addImport("kotlinx.serialization.json", "jsonObject")
-            .build()
-
-        fileSpec.writeTo(environment.filer)
+        fileSpec.build().writeTo(environment.filer)
     }
 
     companion object {
         private const val PACKAGE_POSTFIX = ".mappers"
-        private const val MAPPER = "Mapper"
+        private const val JSON_MAPPER = "JsonMapper"
         private const val MAP_FUNCTION_NAME = "map"
         private const val JSON_OBJECT_PARAM_NAME = "jsonObject"
         private const val RETURN_STATEMENT = "return widget"
+        private const val DTO_KEY = "dto"
+        private const val WIDGET_TYPE_KEY = "widgetType"
 
-        private const val WIDGET_MAPPER_PROVIDER_CLASS_NAME = "WidgetMapperProviderImpl"
+        private const val JSON_MAPPER_PROVIDER_CLASS_NAME = "JsonWidgetMapperProviderImpl"
+        private const val MODEL_MAPPER_PROVIDER_CLASS_NAME = "WidgetMapperProviderImpl"
         private const val WIDGET_MAPPER_PROVIDER_GET_FUNCTION_NAME = "get"
         private const val WIDGET_MAPPER_PROVIDER_GET_FUNCTION_PARAM = "widgetType"
-
-        private const val CMS_PAGE_MAPPER_CLASS_NAME = "CmsPageMapper"
-        private const val MAPPER_ERROR_TAG = "MAPPER_ERROR_TAG"
-        private const val CMS_PAGE_MAPPER_ERROR_INITIALIZER = "\"CmsSystemMapperError\""
-        private const val CMS_PAGE_MAPPER_WIDGETS_KEY = "widgets"
-        private const val CMS_PAGE_MAPPER_WIDGET_TYPE_KEY = "widgetType"
     }
 }
