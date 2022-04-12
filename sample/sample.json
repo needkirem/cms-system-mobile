@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "widgets": [
+    {
+      "id": "1",
+      "widgetType": "TextWidget",
+      "text": "Some text"
+    },
+    {
+      "id": "2",
+      "widgetType": "ImageWidget",
+      "description": "Some description",
+      "imageUrl": "https://raw.githubusercontent.com/needkirem/cms-system-mobile/main/sample/sample.png"
+    }
+  ]
+}
