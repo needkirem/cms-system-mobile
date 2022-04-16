@@ -5,6 +5,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 abstract class CmsWidgetDto {
-    @SerialName("id") abstract val id: String
-    @SerialName("widgetType") abstract val widgetType: String
+    @SerialName("id") abstract val id: String?
+    @SerialName("widgetType") abstract val widgetType: String?
 }
