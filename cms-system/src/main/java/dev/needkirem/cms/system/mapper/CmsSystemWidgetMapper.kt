@@ -13,9 +13,9 @@ class CmsSystemWidgetMapper(
     fun map(jsonWidgets: JsonArray): List<WidgetModel> {
         return jsonWidgets.mapNotNull { jsonElement ->
             val widgetType = jsonElement.jsonObject.getString("widgetType").orEmpty()
-            val jsonMapper = jsonWidgetMapperProvider.get(widgetType)
-            val modelMapper = modelWidgetMapperProvider.get(widgetType)
             try {
+                val jsonMapper = jsonWidgetMapperProvider.get(widgetType)
+                val modelMapper = modelWidgetMapperProvider.get(widgetType)
                 val dto = checkNotNull(jsonMapper?.map(jsonElement.jsonObject))
                 modelMapper.map(dto)
             } catch (throwable: Throwable) {
