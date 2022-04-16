@@ -16,14 +16,20 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "jsonBaseUrl", "\"https://raw.githubusercontent.com/\"")
+            buildConfigField("String", "jsonPath", "\"needkirem/cms-system-mobile/main/sample/sample.json\"")
+        }
         release {
             isMinifyEnabled = false
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }
+
     kotlinOptions {
         jvmTarget = "1.8"
     }
@@ -32,6 +38,9 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.2")
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.jakewharton.retrofit:retrofit2-kotlin-coroutines-adapter:0.9.2")
+    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:0.8.0")
     implementation(project(":sample:domain"))
     implementation(project(":cms-system"))
     kapt(project(":cms-system"))
