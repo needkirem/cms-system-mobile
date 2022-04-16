@@ -8,6 +8,11 @@
     },
     {
       "id": "2",
+      "widgetType": "TextWidget",
+      "text": "Some text 2"
+    },
+    {
+      "id": "3",
       "widgetType": "ImageWidget",
       "description": "Some description",
       "imageUrl": "https://raw.githubusercontent.com/needkirem/cms-system-mobile/main/sample/sample.png"
