@@ -2,10 +2,12 @@ package dev.needkirem.cms.system.processor
 
 import com.squareup.kotlinpoet.*
 import dev.needkirem.cms.system.annotation.CmsWidgetMapper
+import dev.needkirem.cms.system.dto.CmsWidgetDto
 import dev.needkirem.cms.system.mapper.JsonWidgetMapper
 import dev.needkirem.cms.system.mapper.JsonWidgetMapperProvider
 import dev.needkirem.cms.system.mapper.WidgetMapper
 import dev.needkirem.cms.system.mapper.WidgetMapperProvider
+import dev.needkirem.cms.system.model.WidgetModel
 import dev.needkirem.cms.system.utils.*
 import kotlinx.serialization.json.JsonObject
 import javax.annotation.processing.ProcessingEnvironment
@@ -119,19 +121,21 @@ class WidgetMappersGenerator {
         environment: ProcessingEnvironment,
         mapperTriples: List<Triple<String, String, String>>,
     ) {
-        val mapFunReturnType = typeNameOf<WidgetMapper>()
+        val mapFunReturnType = typeNameOf<WidgetMapper<CmsWidgetDto, WidgetModel>>()
         val providerProperties = mutableListOf<PropertySpec>()
         val imports = mutableListOf<Pair<String, String>>()
         var providerStatement = "return when($WIDGET_MAPPER_PROVIDER_GET_FUNCTION_PARAM) {\n"
 
         mapperTriples.forEach { (widget, mapper, pack) ->
-            val lazyProviderProperty = PropertySpec.builder(mapper, mapFunReturnType)
+            val mapperType = typeNameOf<WidgetMapper<*, *>>()
+            val lazyProviderProperty = PropertySpec.builder(mapper, mapperType)
                 .addModifiers(KModifier.PRIVATE)
                 .delegate("lazy { $mapper() }")
                 .build()
             providerProperties.add(lazyProviderProperty)
             imports.add(pack to mapper)
-            providerStatement = "$providerStatement\"$widget\" -> $mapper\n"
+            providerStatement =
+                "$providerStatement\"$widget\" -> $mapper as WidgetMapper<CmsWidgetDto, WidgetModel>\n"
         }
         val throwStatement =
             "throw IllegalArgumentException(\"Cannot find widget mapper for widgetType = \$widgetType\")"
