@@ -6,7 +6,20 @@ plugins {
 }
 
 group = "com.github.needkirem"
-version = "0.1"
+version = "0.2"
+
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+        }
+    }
+}
 
 dependencies {
     api("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.6.20")

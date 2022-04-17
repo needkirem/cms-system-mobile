@@ -15,12 +15,17 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    val jsonBaseUrl = "https://raw.githubusercontent.com/"
+    val jsonPath = "needkirem/cms-system-mobile/main/sample/sample.json"
+
     buildTypes {
         debug {
-            buildConfigField("String", "jsonBaseUrl", "\"https://raw.githubusercontent.com/\"")
-            buildConfigField("String", "jsonPath", "\"needkirem/cms-system-mobile/main/sample/sample.json\"")
+            buildConfigField("String", "jsonBaseUrl", "\"$jsonBaseUrl\"")
+            buildConfigField("String", "jsonPath", "\"$jsonPath\"")
         }
         release {
+            buildConfigField("String", "jsonBaseUrl", "\"$jsonBaseUrl\"")
+            buildConfigField("String", "jsonPath", "\"$jsonPath\"")
             isMinifyEnabled = false
         }
     }
