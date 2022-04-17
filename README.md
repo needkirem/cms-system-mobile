@@ -14,6 +14,6 @@ allprojects {
 Add the dependency:
 ```gradle
 dependencies {
-    implementation 'com.github.needkirem:cms-system-mobile:0.2'
+    implementation 'com.github.needkirem:cms-system-mobile:${latestVersion}'
 }
 ```
